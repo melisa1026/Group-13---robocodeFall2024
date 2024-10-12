@@ -40,7 +40,6 @@ public class CompoundUndoManager extends UndoManagerWithActions {
 	@Override
 	public void undoableEditHappened(UndoableEditEvent undoableEditEvent) {
 		UndoableEdit edit = undoableEditEvent.getEdit();
-
 		DefaultDocumentEvent event = getDocumentEvent(edit);
 
 		if (event != null) {
@@ -52,26 +51,13 @@ public class CompoundUndoManager extends UndoManagerWithActions {
 	}
 
 	private DefaultDocumentEvent getDocumentEvent(UndoableEdit edit) {
+		// If it's a DefaultDocumentEvent, return it directly
 		if (edit instanceof DefaultDocumentEvent) {
 			return (DefaultDocumentEvent) edit;
 		}
 
-		try {
-			return extractDocumentEventFromWrapper(edit);
-		} catch (Exception e) {
-			e.printStackTrace();
-			return null;
-		}
-	}
-
-	private DefaultDocumentEvent extractDocumentEventFromWrapper(UndoableEdit edit) throws Exception {
-		Class<?> clazz = Class.forName("javax.swing.text.AbstractDocument$DefaultDocumentEventUndoableWrapper");
-		if (UndoableEdit.class.isAssignableFrom(clazz)) {
-			Field f = clazz.getDeclaredField("dde"); // DefaultDocumentEvent
-			f.setAccessible(true);
-			return (DefaultDocumentEvent) f.get(edit);
-		}
-		return null;
+		// No longer using reflection; handle the case when we can't retrieve the event directly
+		return null; // Return null or handle this case appropriately if needed
 	}
 
 	private void handleDocumentEvent(DefaultDocumentEvent event, UndoableEdit edit) {
