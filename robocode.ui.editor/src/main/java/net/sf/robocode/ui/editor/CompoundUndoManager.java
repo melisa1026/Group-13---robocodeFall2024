@@ -101,7 +101,7 @@ public class CompoundUndoManager extends UndoManagerWithActions {
 	}
 
 	@Override
-	public void discardAllEdits() {
+	public synchronized void discardAllEdits() {
 		super.discardAllEdits();
 		reset();
 	}
