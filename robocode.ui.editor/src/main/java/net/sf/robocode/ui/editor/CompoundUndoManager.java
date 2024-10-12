@@ -38,7 +38,7 @@ public class CompoundUndoManager extends UndoManagerWithActions {
 	}
 
 	@Override
-	public void undoableEditHappened(UndoableEditEvent undoableEditEvent) {
+	public synchronized void undoableEditHappened(UndoableEditEvent undoableEditEvent) {
 		UndoableEdit edit = undoableEditEvent.getEdit();
 		DefaultDocumentEvent event = getDocumentEvent(edit);
 
@@ -50,7 +50,7 @@ public class CompoundUndoManager extends UndoManagerWithActions {
 		updateUndoRedoState();
 	}
 
-	private DefaultDocumentEvent getDocumentEvent(UndoableEdit edit) {
+	private synchronized DefaultDocumentEvent getDocumentEvent(UndoableEdit edit) {
 		// If it's a DefaultDocumentEvent, return it directly
 		if (edit instanceof DefaultDocumentEvent) {
 			return (DefaultDocumentEvent) edit;
@@ -60,7 +60,7 @@ public class CompoundUndoManager extends UndoManagerWithActions {
 		return null; // Return null or handle this case appropriately if needed
 	}
 
-	private void handleDocumentEvent(DefaultDocumentEvent event, UndoableEdit edit) {
+	private synchronized void handleDocumentEvent(DefaultDocumentEvent event, UndoableEdit edit) {
 		EventType eventType = event.getType();
 
 		if (eventType != EventType.CHANGE) {
