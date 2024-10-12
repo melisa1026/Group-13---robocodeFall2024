@@ -29,7 +29,7 @@ import javax.swing.undo.UndoableEdit;
 public class CompoundUndoManager extends UndoManagerWithActions {
 
 	private CompoundEdit currentCompoundEdit;
-	private EventType lastEventType;
+	private transient EventType lastEventType;  // Made lastEventType as transient
 	private boolean isCompoundMarkStart;
 
 	public CompoundUndoManager() {
@@ -41,68 +41,77 @@ public class CompoundUndoManager extends UndoManagerWithActions {
 	public void undoableEditHappened(UndoableEditEvent undoableEditEvent) {
 		UndoableEdit edit = undoableEditEvent.getEdit();
 
-		DefaultDocumentEvent event = null;
-		
-		// Make sure this event is a document event
-		if (edit instanceof DefaultDocumentEvent) {
-			// Get the event type
-			event = (DefaultDocumentEvent) edit;
-		} else {
-			try {
-				Class<?> clazz = Class.forName("javax.swing.text.AbstractDocument$DefaultDocumentEventUndoableWrapper");
-				if (UndoableEdit.class.isAssignableFrom(clazz)) {
-					Field f = clazz.getDeclaredField("dde"); // DefaultDocumentEvent
-					f.setAccessible(true);
-					event = (DefaultDocumentEvent) f.get(edit);
-				}				
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
-		}
+		DefaultDocumentEvent event = getDocumentEvent(edit);
+
 		if (event != null) {
-			EventType eventType = event.getType();
-
-			// Check if the event type is not a change on character attributes, but instead an insertion or removal of
-			// text.
-			if (eventType != EventType.CHANGE) {
-				boolean isEndCompoundEdit = false;
-
-				// Check if current compound edit must be ended as it contains at least one new line
-				if (eventType == EventType.INSERT) {
-					try {
-						// Check if the inserted text contains a new line character
-						String insertedText = event.getDocument().getText(event.getOffset(), event.getLength());
-						isEndCompoundEdit = insertedText.contains("\n");
-					} catch (BadLocationException e) {
-						e.printStackTrace();
-					}
-				}
-
-				// Make sure we are not in an explicit marked compound edit
-				if (!isCompoundMarkStart) {
-					// Check if current compound edit must be ended due to change between insertion or removal change
-					isEndCompoundEdit |= (eventType != lastEventType);
-
-					// Check if the current compound edit should be ended and a new one started
-					if (isEndCompoundEdit) {
-						endCurrentCompoundEdit();
-					}
-					// Save the last event type
-					lastEventType = eventType;
-				}
-
-				// Create new compound edit if the current one has been ended or does not exist
-				if (currentCompoundEdit == null) {
-					newCurrentCompoundEdit();
-				}
-			}
-			// Added event edit to the current compound edit
-			if (currentCompoundEdit != null) {
-				currentCompoundEdit.addEdit(edit);
-			}
+			handleDocumentEvent(event, edit);
 		}
+
 		// Update the state of the actions
 		updateUndoRedoState();
+	}
+
+	private DefaultDocumentEvent getDocumentEvent(UndoableEdit edit) {
+		if (edit instanceof DefaultDocumentEvent) {
+			return (DefaultDocumentEvent) edit;
+		}
+
+		try {
+			return extractDocumentEventFromWrapper(edit);
+		} catch (Exception e) {
+			e.printStackTrace();
+			return null;
+		}
+	}
+
+	private DefaultDocumentEvent extractDocumentEventFromWrapper(UndoableEdit edit) throws Exception {
+		Class<?> clazz = Class.forName("javax.swing.text.AbstractDocument$DefaultDocumentEventUndoableWrapper");
+		if (UndoableEdit.class.isAssignableFrom(clazz)) {
+			Field f = clazz.getDeclaredField("dde"); // DefaultDocumentEvent
+			f.setAccessible(true);
+			return (DefaultDocumentEvent) f.get(edit);
+		}
+		return null;
+	}
+
+	private void handleDocumentEvent(DefaultDocumentEvent event, UndoableEdit edit) {
+		EventType eventType = event.getType();
+
+		if (eventType != EventType.CHANGE) {
+			boolean isEndCompoundEdit = shouldEndCompoundEdit(eventType, event);
+
+			if (!isCompoundMarkStart) {
+				if (isEndCompoundEdit || eventType != lastEventType) {
+					endCurrentCompoundEdit();
+				}
+				lastEventType = eventType;
+			}
+
+			if (currentCompoundEdit == null) {
+				newCurrentCompoundEdit();
+			}
+		}
+
+		if (currentCompoundEdit != null) {
+			currentCompoundEdit.addEdit(edit);
+		}
+	}
+
+	private boolean shouldEndCompoundEdit(EventType eventType, DefaultDocumentEvent event) {
+		if (eventType == EventType.INSERT) {
+			return containsNewLine(event);
+		}
+		return false;
+	}
+
+	private boolean containsNewLine(DefaultDocumentEvent event) {
+		try {
+			String insertedText = event.getDocument().getText(event.getOffset(), event.getLength());
+			return insertedText.contains("\n");
+		} catch (BadLocationException e) {
+			e.printStackTrace();
+			return false;
+		}
 	}
 
 	@Override
